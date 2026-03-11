@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="API/Prospera.API.csproj" />
+    <Project Path="Infrastructure/Prospera.Infrastructure.csproj" />
+    <Project Path="Prospera.Contracts/Prospera.Contracts.csproj" />
+    <Project Path="src/Application/Prospera.Application.csproj" />
+    <Project Path="src/Prospera.Domain/Prospera.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+</Solution>

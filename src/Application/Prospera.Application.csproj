@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="12.0.1" />
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.9.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.9.0" />
+    <PackageReference Include="MediatR" Version="12.2.0" />
+    <PackageReference Include="MediatR.Extensions.Microsoft.DependencyInjection" Version="11.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Prospera.Domain\Prospera.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="AI\Commands\GenerateFinancialAdvice\" />
+    <Folder Include="AI\Queries\AnalyzeSpendingPatterns\" />
+    <Folder Include="Analytics\Queries\GetRiskProfile\" />
+    <Folder Include="Analytics\Queries\GetSavingsRate\" />
+    <Folder Include="Analytics\Queries\GetLiquidityRatio\" />
+    <Folder Include="Analytics\Queries\GetFinancialBalance\" />
+    <Folder Include="Analytics\Queries\GetSpendingAnalysis\" />
+    <Folder Include="Banking\Commands\ConnectBankAccount\" />
+    <Folder Include="Banking\Queries\GetBankAccounts\" />
+    <Folder Include="Budgets\Commands\CreateBudget\" />
+    <Folder Include="Budgets\Commands\UpdateBudget\" />
+    <Folder Include="Budgets\Queries\GetBudgets\" />
+    <Folder Include="Common\Models\" />
+    <Folder Include="Debts\Commands\CreateDebt\" />
+    <Folder Include="Debts\Queries\GetDebts\" />
+    <Folder Include="Investments\Commands\AddInvestment\" />
+    <Folder Include="Investments\Queries\GetInvestmentOpportunities\" />
+    <Folder Include="Investments\Queries\GetPortfolio\" />
+    <Folder Include="Investments\Queries\AnalyzePortfolio\" />
+    <Folder Include="SavingsGoals\Commands\" />
+    <Folder Include="SavingsGoals\Queries\" />
+    <Folder Include="Transactions\Commands\CreateTransaction\" />
+    <Folder Include="Transactions\Commands\DeleteTransaction\" />
+    <Folder Include="Transactions\Commands\UpdateTransaction\" />
+    <Folder Include="Transactions\Queries\GetTransactions\" />
+    <Folder Include="Transactions\Queries\GetTransactionById\" />
+    <Folder Include="Transactions\Queries\GetTransactionsByDateRange\" />
+  </ItemGroup>
+
+</Project>
