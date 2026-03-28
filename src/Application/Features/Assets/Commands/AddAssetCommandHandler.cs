@@ -7,9 +7,7 @@ using Prospera.Application.DTOs;
 
 namespace Prospera.Application.Features.Assets.Commands;
 
-/// <summary>
-/// Handler for AddAssetCommand
-/// </summary>
+
 public class AddAssetCommandHandler : IRequestHandler<AddAssetCommand, AssetDto>
 {
     private readonly IAssetRepository _assetRepository;

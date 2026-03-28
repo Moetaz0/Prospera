@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Redirect build outputs to a user-writable, likely unblocked location while keeping per-project isolation -->
+    <BaseOutputPath>$(USERPROFILE)\ProsperaBuild\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(USERPROFILE)\ProsperaBuild\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

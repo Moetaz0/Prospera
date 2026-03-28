@@ -20,6 +20,12 @@ public class AssetRepository : IAssetRepository
             .ToListAsync();
     }
 
+    public async Task<Asset?> GetByIdAsync(Guid id, Guid userId)
+    {
+        return await _context.Assets
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
+    }
+
     public async Task AddAsync(Asset asset)
     {
         await _context.Assets.AddAsync(asset);

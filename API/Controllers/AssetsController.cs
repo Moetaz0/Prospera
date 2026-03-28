@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Prospera.Application.Features.Assets.Commands;
+using Prospera.Application.Features.Assets.Queries;
 using Prospera.Contracts.DTOs.Asset;
 
 namespace Prospera.API.Controllers;
@@ -11,6 +16,7 @@ namespace Prospera.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class AssetsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -72,15 +78,19 @@ public class AssetsController : ControllerBase
     public async Task<IActionResult> GetAssetById(Guid userId, Guid id)
     {
         _logger.LogInformation("Fetching asset {AssetId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send GetAssetQuery via MediatR
-            // var query = new GetAssetQuery { UserId = userId, AssetId = id };
-            // var result = await _mediator.Send(query);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var query = new GetAssetQuery { UserId = userId, AssetId = id };
+            var result = await _mediator.Send(query);
+
+            if (result == null)
+            {
+                _logger.LogWarning("Asset {AssetId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -102,15 +112,12 @@ public class AssetsController : ControllerBase
     public async Task<IActionResult> GetUserAssets(Guid userId)
     {
         _logger.LogInformation("Fetching assets for user: {UserId}", userId);
-        
+
         try
         {
-            // TODO: Send GetUserAssetsQuery via MediatR
-            // var query = new GetUserAssetsQuery { UserId = userId };
-            // var result = await _mediator.Send(query);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var query = new GetUserAssetsQuery { UserId = userId };
+            var result = await _mediator.Send(query);
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -134,15 +141,26 @@ public class AssetsController : ControllerBase
     public async Task<IActionResult> UpdateAsset(Guid userId, Guid id, AddAssetRequest request)
     {
         _logger.LogInformation("Updating asset {AssetId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send UpdateAssetCommand via MediatR
-            // var command = new UpdateAssetCommand { UserId = userId, AssetId = id, ...request properties };
-            // var result = await _mediator.Send(command);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var command = new UpdateAssetCommand 
+            { 
+                UserId = userId, 
+                AssetId = id, 
+                Name = request.Name, 
+                CurrentValue = request.CurrentValue,
+                Type = request.Type.ToString()
+            };
+            var result = await _mediator.Send(command);
+
+            if (result == null)
+            {
+                _logger.LogWarning("Asset {AssetId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -165,15 +183,19 @@ public class AssetsController : ControllerBase
     public async Task<IActionResult> DeleteAsset(Guid userId, Guid id)
     {
         _logger.LogInformation("Deleting asset {AssetId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send DeleteAssetCommand via MediatR
-            // var command = new DeleteAssetCommand { UserId = userId, AssetId = id };
-            // await _mediator.Send(command);
-            // return NoContent();
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var command = new DeleteAssetCommand { UserId = userId, AssetId = id };
+            var result = await _mediator.Send(command);
+
+            if (!result)
+            {
+                _logger.LogWarning("Asset {AssetId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return NoContent();
         }
         catch (Exception ex)
         {

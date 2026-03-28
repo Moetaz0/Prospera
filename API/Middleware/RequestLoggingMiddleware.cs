@@ -40,6 +40,9 @@ public class RequestLoggingMiddleware
 
                 stopwatch.Stop();
 
+                // Reset the stream position to the beginning
+                responseBody.Position = 0;
+
                 _logger.LogInformation(
                     "Request completed: {Method} {Path} returned {StatusCode} in {ElapsedMilliseconds}ms",
                     request.Method,

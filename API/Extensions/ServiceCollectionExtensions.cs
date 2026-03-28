@@ -1,5 +1,7 @@
 using Microsoft.OpenApi.Models;
 using Prospera.API.Filters;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Prospera.API.Extensions;
 
@@ -17,7 +19,16 @@ public static class ServiceCollectionExtensions
         services.AddControllers(options =>
         {
             options.Filters.Add<ApiExceptionFilter>();
+        })
+        .AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.JsonSerializerOptions.WriteIndented = false;
         });
+
+        // API explorer for Swagger generation
+        services.AddEndpointsApiExplorer();
 
         // Add Swagger/OpenAPI
         services.AddSwaggerGen(options =>

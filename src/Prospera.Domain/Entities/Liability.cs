@@ -18,4 +18,11 @@ public class Liability : BaseEntity
         Type = type;
         UserId = userId;
     }
+
+    public void UpdateDetails(string name, decimal amount, LiabilityType type)
+    {
+        Name = name;
+        Amount = amount;
+        Type = type;
+    }
 }

@@ -1,6 +1,8 @@
 using MediatR;
+using System;
 using Microsoft.AspNetCore.Mvc;
 using Prospera.Contracts.DTOs.Liability;
+using Prospera.Application.Features.Liabilities.Commands;
 
 namespace Prospera.API.Controllers;
 
@@ -36,16 +38,38 @@ public class LiabilitiesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AddLiability(Guid userId, AddLiabilityRequest request)
     {
-        _logger.LogInformation("Adding liability for user: {UserId}, Type: {LiabilityType}", userId, request.Type);
+        _logger.LogInformation("Adding liability for user: {UserId}, Type: {LiabilityType}", userId, request?.Type);
+
+        if (request is null)
+        {
+            return BadRequest("Request body is required");
+        }
         
         try
         {
-            // TODO: Send AddLiabilityCommand via MediatR
-            // var command = new AddLiabilityCommand { UserId = userId, Name = request.Name, Amount = request.Amount, Type = request.Type };
-            // var result = await _mediator.Send(command);
-            // return CreatedAtAction(nameof(GetLiabilityById), new { userId, id = result.Id }, result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var command = new AddLiabilityCommand
+            {
+                UserId = userId,
+                Name = request.Name ?? string.Empty,
+                Amount = request.Amount,
+                Type = request.Type.ToString()
+            };
+
+            var result = await _mediator.Send(command);
+
+            var response = new LiabilityDto
+            {
+                Id = result.Id,
+                Name = result.Name,
+                Amount = result.Amount,
+                Type = Enum.TryParse<Prospera.Contracts.Enums.LiabilityType>(result.Type, out var liabilityType)
+                    ? liabilityType
+                    : Prospera.Contracts.Enums.LiabilityType.Other,
+                UserId = result.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            return CreatedAtAction(nameof(GetLiabilityById), new { userId, id = response.Id }, response);
         }
         catch (Exception ex)
         {

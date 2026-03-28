@@ -1,7 +1,10 @@
+using System;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Prospera.Contracts.DTOs.User;
 using Prospera.Application.Features.Users.Commands;
+using Prospera.Domain.Interfaces;
 
 namespace Prospera.API.Controllers;
 
@@ -11,59 +14,48 @@ namespace Prospera.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ILogger<UsersController> _logger;
+    private readonly IUserRepository _userRepository;
 
-    public UsersController(IMediator mediator, ILogger<UsersController> logger)
+    public UsersController(
+        IMediator mediator,
+        ILogger<UsersController> logger,
+        IUserRepository userRepository)
     {
         _mediator = mediator;
         _logger = logger;
+        _userRepository = userRepository;
     }
 
     /// <summary>
-    /// Create a new user account
+    /// Get all users (Admin only)
     /// </summary>
-    /// <param name="request">User creation request with name and email</param>
-    /// <returns>The created user with ID and dashboard data</returns>
-    /// <response code="201">User created successfully</response>
-    /// <response code="400">Invalid request data</response>
-    [HttpPost]
-    [ProducesResponseType(typeof(UserDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateUser(CreateUserRequest request)
+    /// <returns>List of users</returns>
+    /// <response code="200">Users retrieved successfully</response>
+    [HttpGet]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(IEnumerable<UserDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllUsers()
     {
-        _logger.LogInformation("Creating new user with email: {Email}", request.Email);
-        
-        try
+        _logger.LogInformation("Admin requesting all users");
+
+        var users = await _userRepository.GetAllAsync();
+
+        var response = users.Select(u => new UserDto
         {
-            var command = new CreateUserCommand
-            {
-                FullName = request.FullName,
-                Email = request.Email
-            };
-            
-            var result = await _mediator.Send(command);
-            
-            // Map Application DTO to Contract DTO for response
-            var response = new UserDto
-            {
-                Id = result.Id,
-                FullName = result.FullName,
-                Email = result.Email,
-                RiskProfile = Enum.Parse<Prospera.Contracts.Enums.RiskProfile>(result.RiskProfile ?? "Moderate"),
-                NetWorth = result.NetWorth,
-                CreatedAt = DateTime.UtcNow
-            };
-            
-            return CreatedAtAction(nameof(GetUserById), new { id = response.Id }, response);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating user");
-            throw;
-        }
+            Id = u.Id,
+            FullName = u.FullName,
+            Email = u.Email,
+            RiskProfile = Enum.Parse<Prospera.Contracts.Enums.RiskProfile>(u.RiskProfile.ToString()),
+            NetWorth = (u.Assets?.Sum(a => a.CurrentValue) ?? 0) - (u.Liabilities?.Sum(l => l.Amount) ?? 0),
+            CreatedAt = DateTime.UtcNow
+        });
+
+        return Ok(response);
     }
 
     /// <summary>

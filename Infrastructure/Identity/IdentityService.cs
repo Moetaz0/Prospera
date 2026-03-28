@@ -19,7 +19,7 @@ public class IdentityService : IIdentityService
         _tokenGenerator = tokenGenerator;
     }
 
-    public async Task<Result<string>> RegisterAsync(
+public async Task<Result<AuthResult>> RegisterAsync(
         string email,
         string password,
         string firstName,
@@ -28,27 +28,46 @@ public class IdentityService : IIdentityService
     {
         try
         {
-            var user = new User(firstName + " " + lastName, email);
+            var existingUser = await _userRepository.GetByEmailAsync(email);
+            if (existingUser is not null)
+            {
+                return Result<AuthResult>.Failure("Email is already registered");
+            }
+
+            var passwordHash = _passwordHasher.HashPassword(password);
+            var user = new User(firstName + " " + lastName, email, passwordHash);
             await _userRepository.AddAsync(user);
 
             var token = _tokenGenerator.GenerateToken(user);
-            return Result<string>.Success(token);
+            return Result<AuthResult>.Success(AuthResult.FromUser(token, user));
         }
         catch (Exception ex)
         {
-            return Result<string>.Failure(ex.Message);
+            return Result<AuthResult>.Failure(ex.Message);
         }
     }
 
-    public async Task<Result<string>> LoginAsync(string email, string password)
+    public async Task<Result<AuthResult>> LoginAsync(string email, string password)
     {
         try
         {
-            return Result<string>.Failure("Login not implemented");
+            var user = await _userRepository.GetByEmailAsync(email);
+            if (user is null)
+            {
+                return Result<AuthResult>.Failure("Invalid credentials");
+            }
+
+            if (!_passwordHasher.VerifyPassword(user.PasswordHash, password))
+            {
+                return Result<AuthResult>.Failure("Invalid credentials");
+            }
+
+            var token = _tokenGenerator.GenerateToken(user);
+            return Result<AuthResult>.Success(AuthResult.FromUser(token, user));
         }
         catch (Exception ex)
         {
-            return Result<string>.Failure(ex.Message);
+            return Result<AuthResult>.Failure(ex.Message);
         }
     }
 }

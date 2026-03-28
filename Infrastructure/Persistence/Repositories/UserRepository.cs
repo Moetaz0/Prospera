@@ -22,6 +22,21 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
+    public async Task<IEnumerable<User>> GetAllAsync()
+    {
+        return await _context.Users
+            .Include(u => u.Assets)
+            .Include(u => u.Liabilities)
+            .Include(u => u.Transactions)
+            .ToListAsync();
+    }
+
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == email);
+    }
+
     public async Task AddAsync(User user)
     {
         await _context.Users.AddAsync(user);

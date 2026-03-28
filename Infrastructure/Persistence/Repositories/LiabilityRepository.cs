@@ -20,6 +20,12 @@ public class LiabilityRepository : ILiabilityRepository
             .ToListAsync();
     }
 
+    public async Task<Liability?> GetByIdAsync(Guid id, Guid userId)
+    {
+        return await _context.Liabilities
+            .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId);
+    }
+
     public async Task AddAsync(Liability liability)
     {
         await _context.Liabilities.AddAsync(liability);
