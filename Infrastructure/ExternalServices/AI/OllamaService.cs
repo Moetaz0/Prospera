@@ -119,7 +119,7 @@ Format your response as:
 
     private string ResolveModelName(string baseUrl, string? configuredModel)
     {
-        if (!baseUrl.Contains("openrouter.ai", StringComparison.OrdinalIgnoreCase))
+        if (!IsOpenRouterUrl(baseUrl))
         {
             return string.IsNullOrWhiteSpace(configuredModel) ? DefaultOllamaModel : configuredModel;
         }
@@ -133,7 +133,9 @@ Format your response as:
             return DefaultOpenRouterModel;
         }
 
-        if (configuredModel.Contains(":", StringComparison.Ordinal))
+        if (configuredModel.Equals("llama3:latestt", StringComparison.OrdinalIgnoreCase) ||
+            (configuredModel.StartsWith("llama", StringComparison.OrdinalIgnoreCase) &&
+             configuredModel.Contains(':')))
         {
             _logger.LogWarning(
                 "Invalid OpenRouter model '{ModelName}' configured. Falling back to '{FallbackModel}'.",
@@ -144,5 +146,16 @@ Format your response as:
         }
 
         return configuredModel;
+    }
+
+    private static bool IsOpenRouterUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Host.Equals("openrouter.ai", StringComparison.OrdinalIgnoreCase) ||
+               uri.Host.EndsWith(".openrouter.ai", StringComparison.OrdinalIgnoreCase);
     }
 }
