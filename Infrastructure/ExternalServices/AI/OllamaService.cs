@@ -124,8 +124,16 @@ Format your response as:
             return string.IsNullOrWhiteSpace(configuredModel) ? DefaultOllamaModel : configuredModel;
         }
 
-        if (string.IsNullOrWhiteSpace(configuredModel) ||
-            configuredModel.Contains(":", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(configuredModel))
+        {
+            _logger.LogWarning(
+                "No OpenRouter model configured. Falling back to '{FallbackModel}'.",
+                DefaultOpenRouterModel);
+
+            return DefaultOpenRouterModel;
+        }
+
+        if (configuredModel.Contains(":", StringComparison.Ordinal))
         {
             _logger.LogWarning(
                 "Invalid OpenRouter model '{ModelName}' configured. Falling back to '{FallbackModel}'.",
