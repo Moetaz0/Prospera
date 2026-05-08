@@ -9,6 +9,8 @@ namespace Prospera.Infrastructure.ExternalServices.AI;
 
 public class OllamaService : ILlmService
 {
+    private const string DefaultOllamaModel = "llama3.2";
+    private const string DefaultOpenRouterModel = "openchat/openchat-3.5";
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OllamaService> _logger;
@@ -24,7 +26,7 @@ public class OllamaService : ILlmService
         _configuration = configuration;
         _logger = logger;
         _ollamaUrl = configuration["Ollama:Url"] ?? "http://localhost:11434";
-        _modelName = configuration["Ollama:Model"] ?? "llama3.2";
+        _modelName = ResolveModelName(_ollamaUrl, configuration["Ollama:Model"]);
         _httpClient.BaseAddress = new Uri(_ollamaUrl);
     }
 
@@ -113,5 +115,26 @@ Format your response as:
 2. [Recommendation 2]
 3. [Recommendation 3]
 ";
+    }
+
+    private string ResolveModelName(string baseUrl, string? configuredModel)
+    {
+        if (!baseUrl.Contains("openrouter.ai", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.IsNullOrWhiteSpace(configuredModel) ? DefaultOllamaModel : configuredModel;
+        }
+
+        if (string.IsNullOrWhiteSpace(configuredModel) ||
+            configuredModel.Contains(":", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Invalid OpenRouter model '{ModelName}' configured. Falling back to '{FallbackModel}'.",
+                configuredModel,
+                DefaultOpenRouterModel);
+
+            return DefaultOpenRouterModel;
+        }
+
+        return configuredModel;
     }
 }
