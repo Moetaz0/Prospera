@@ -25,8 +25,13 @@ try
     Log.Information("Starting Prospera API");
 
     // Add services to the container
+    builder.Services.AddHttpContextAccessor(); // Required for CurrentUserService to access HttpContext in scoped requests
     builder.Services.AddApiServices();
-    builder.Services.AddApplicationServices();
+
+    var ollamaUrl = builder.Configuration["Ollama:Url"] ?? "http://localhost:11434";
+    var ollamaModel = builder.Configuration["Ollama:Model"] ?? "llama3.2";
+    builder.Services.AddApplicationServicesWithConfiguration(ollamaUrl, ollamaModel);
+
     builder.Services.AddInfrastructureServices(builder.Configuration);
 
     var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -73,7 +78,11 @@ try
     // Custom middleware
     app.UseRequestLogging();
 
-    app.UseHttpsRedirection();
+    // Only redirect to HTTPS in production to avoid issues with Android dev environment
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
     app.UseCors("AllowAll");
     app.UseAuthentication();
     app.UseAuthorization();

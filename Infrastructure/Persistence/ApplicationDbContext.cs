@@ -26,6 +26,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<Liability> Liabilities => Set<Liability>();
     public DbSet<InvestmentRecommendation> InvestmentRecommendations => Set<InvestmentRecommendation>();
+    public DbSet<CachedNewsArticle> NewsArticles => Set<CachedNewsArticle>();
+    public DbSet<CustomFinancialRate> CustomFinancialRates => Set<CustomFinancialRate>();
+    public DbSet<CoachingSession> CoachingSessions => Set<CoachingSession>();
+    public DbSet<RealEstateEvaluation> RealEstateEvaluations => Set<RealEstateEvaluation>();
+    public DbSet<CarEvaluation> CarEvaluations => Set<CarEvaluation>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
 
     // Explicit interface implementation to return IQueryable
     IQueryable<User> IApplicationDbContext.Users => Users;
@@ -33,6 +39,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     IQueryable<Asset> IApplicationDbContext.Assets => Assets;
     IQueryable<Liability> IApplicationDbContext.Liabilities => Liabilities;
     IQueryable<InvestmentRecommendation> IApplicationDbContext.InvestmentRecommendations => InvestmentRecommendations;
+    IQueryable<CoachingSession> IApplicationDbContext.CoachingSessions => CoachingSessions;
+    IQueryable<RealEstateEvaluation> IApplicationDbContext.RealEstateEvaluations => RealEstateEvaluations;
+    IQueryable<CarEvaluation> IApplicationDbContext.CarEvaluations => CarEvaluations;
 
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -57,6 +66,11 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<Liability>().Ignore(l => l.DomainEvents);
         modelBuilder.Entity<Transaction>().Ignore(t => t.DomainEvents);
         modelBuilder.Entity<InvestmentRecommendation>().Ignore(ir => ir.DomainEvents);
+        modelBuilder.Entity<CustomFinancialRate>().Ignore(cfr => cfr.DomainEvents);
+        modelBuilder.Entity<CoachingSession>().Ignore(cs => cs.DomainEvents);
+        modelBuilder.Entity<RealEstateEvaluation>().Ignore(re => re.DomainEvents);
+        modelBuilder.Entity<CarEvaluation>().Ignore(ce => ce.DomainEvents);
+        modelBuilder.Entity<Conversation>().Ignore(c => c.DomainEvents);
 
         // Ignore Portfolio entity entirely (not needed for MongoDB)
         modelBuilder.Ignore<Portfolio>();

@@ -52,7 +52,7 @@ public class AssetsController : ControllerBase
                 UserId = userId, 
                 Name = request.Name, 
                 CurrentValue = request.CurrentValue,
-                Type = request.Type.ToString() // Fix: Convert AssetType enum to string
+                Type = request.Type
             };
             var result = await _mediator.Send(command);
             return CreatedAtAction(nameof(GetAssetById), new { userId, id = result.Id }, result);
@@ -127,8 +127,54 @@ public class AssetsController : ControllerBase
     }
 
     /// <summary>
-    /// Update asset details
+    /// Get asset with projected valuations (1 year ahead)
+    /// Automatically fetches rates based on asset type:
+    /// - Cash/Stocks/Bonds/Crypto: Inflation adjustment from World Bank
+    /// - Cars: Depreciation from Python financial-api
+    /// - Real Estate: Appreciation from regional data
     /// </summary>
+    /// <param name="userId">The user ID</param>
+    /// <param name="id">The asset ID</param>
+    /// <returns>Asset valuation with 1-year projections and detailed breakdown</returns>
+    /// <response code="200">Valuation calculated successfully</response>
+    /// <response code="404">Asset or user not found</response>
+    [HttpGet("users/{userId}/assets/{id}/valuation")]
+    [ProducesResponseType(typeof(Prospera.Application.DTOs.AssetValuationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAssetValuation(Guid userId, Guid id)
+    {
+        _logger.LogInformation(
+            "Getting asset valuation for {AssetId}, user {UserId}",
+            id, userId);
+
+        try
+        {
+            var query = new GetAssetValuationQuery
+            {
+                UserId = userId,
+                AssetId = id
+            };
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Asset {AssetId} not found", id);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to asset {AssetId}", id);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting asset valuation for {AssetId}", id);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// <param name="userId">The user ID</param>
     /// <param name="id">The asset ID</param>
     /// <param name="request">Updated asset information</param>

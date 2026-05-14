@@ -1,8 +1,12 @@
-using MediatR;
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Prospera.Contracts.DTOs.Liability;
 using Prospera.Application.Features.Liabilities.Commands;
+using Prospera.Application.Features.Liabilities.Queries;
+using Prospera.Contracts.DTOs.Liability;
 
 namespace Prospera.API.Controllers;
 
@@ -12,6 +16,7 @@ namespace Prospera.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class LiabilitiesController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -38,38 +43,19 @@ public class LiabilitiesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AddLiability(Guid userId, AddLiabilityRequest request)
     {
-        _logger.LogInformation("Adding liability for user: {UserId}, Type: {LiabilityType}", userId, request?.Type);
+        _logger.LogInformation("Adding liability for user: {UserId}, Type: {LiabilityType}", userId, request.Type);
 
-        if (request is null)
-        {
-            return BadRequest("Request body is required");
-        }
-        
         try
         {
-            var command = new AddLiabilityCommand
-            {
-                UserId = userId,
-                Name = request.Name ?? string.Empty,
+            var command = new AddLiabilityCommand 
+            { 
+                UserId = userId, 
+                Name = request.Name ?? string.Empty, 
                 Amount = request.Amount,
-                Type = request.Type.ToString()
+                Type = request.Type
             };
-
             var result = await _mediator.Send(command);
-
-            var response = new LiabilityDto
-            {
-                Id = result.Id,
-                Name = result.Name,
-                Amount = result.Amount,
-                Type = Enum.TryParse<Prospera.Contracts.Enums.LiabilityType>(result.Type, out var liabilityType)
-                    ? liabilityType
-                    : Prospera.Contracts.Enums.LiabilityType.Other,
-                UserId = result.UserId,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            return CreatedAtAction(nameof(GetLiabilityById), new { userId, id = response.Id }, response);
+            return CreatedAtAction(nameof(GetLiabilityById), new { userId, id = result.Id }, result);
         }
         catch (Exception ex)
         {
@@ -92,15 +78,19 @@ public class LiabilitiesController : ControllerBase
     public async Task<IActionResult> GetLiabilityById(Guid userId, Guid id)
     {
         _logger.LogInformation("Fetching liability {LiabilityId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send GetLiabilityQuery via MediatR
-            // var query = new GetLiabilityQuery { UserId = userId, LiabilityId = id };
-            // var result = await _mediator.Send(query);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var query = new GetLiabilityQuery { UserId = userId, LiabilityId = id };
+            var result = await _mediator.Send(query);
+
+            if (result == null)
+            {
+                _logger.LogWarning("Liability {LiabilityId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -122,15 +112,12 @@ public class LiabilitiesController : ControllerBase
     public async Task<IActionResult> GetUserLiabilities(Guid userId)
     {
         _logger.LogInformation("Fetching liabilities for user: {UserId}", userId);
-        
+
         try
         {
-            // TODO: Send GetUserLiabilitiesQuery via MediatR
-            // var query = new GetUserLiabilitiesQuery { UserId = userId };
-            // var result = await _mediator.Send(query);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var query = new GetUserLiabilitiesQuery { UserId = userId };
+            var result = await _mediator.Send(query);
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -154,15 +141,26 @@ public class LiabilitiesController : ControllerBase
     public async Task<IActionResult> UpdateLiability(Guid userId, Guid id, AddLiabilityRequest request)
     {
         _logger.LogInformation("Updating liability {LiabilityId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send UpdateLiabilityCommand via MediatR
-            // var command = new UpdateLiabilityCommand { UserId = userId, LiabilityId = id, ...request properties };
-            // var result = await _mediator.Send(command);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var command = new UpdateLiabilityCommand 
+            { 
+                UserId = userId, 
+                LiabilityId = id, 
+                Name = request.Name ?? string.Empty, 
+                Amount = request.Amount,
+                Type = request.Type.ToString()
+            };
+            var result = await _mediator.Send(command);
+
+            if (result == null)
+            {
+                _logger.LogWarning("Liability {LiabilityId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -185,15 +183,19 @@ public class LiabilitiesController : ControllerBase
     public async Task<IActionResult> DeleteLiability(Guid userId, Guid id)
     {
         _logger.LogInformation("Deleting liability {LiabilityId} for user {UserId}", id, userId);
-        
+
         try
         {
-            // TODO: Send DeleteLiabilityCommand via MediatR
-            // var command = new DeleteLiabilityCommand { UserId = userId, LiabilityId = id };
-            // await _mediator.Send(command);
-            // return NoContent();
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var command = new DeleteLiabilityCommand { UserId = userId, LiabilityId = id };
+            var result = await _mediator.Send(command);
+
+            if (!result)
+            {
+                _logger.LogWarning("Liability {LiabilityId} not found for user {UserId}", id, userId);
+                return NotFound();
+            }
+
+            return NoContent();
         }
         catch (Exception ex)
         {

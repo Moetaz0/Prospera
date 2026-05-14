@@ -10,6 +10,9 @@ public interface IApplicationDbContext
     IQueryable<Asset> Assets { get; }
     IQueryable<Liability> Liabilities { get; }
     IQueryable<InvestmentRecommendation> InvestmentRecommendations { get; }
+    IQueryable<CoachingSession> CoachingSessions { get; }
+    IQueryable<RealEstateEvaluation> RealEstateEvaluations { get; }
+    IQueryable<CarEvaluation> CarEvaluations { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

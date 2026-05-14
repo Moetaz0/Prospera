@@ -14,4 +14,9 @@
     <ProjectReference Include="..\src\Prospera.Domain\Prospera.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Common\" />
+    <Folder Include="DTOs\Coaching\" />
+  </ItemGroup>
+
 </Project>

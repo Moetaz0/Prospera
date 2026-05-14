@@ -48,6 +48,9 @@ public class GetFinancialMetricsQueryHandler : IRequestHandler<GetFinancialMetri
 
         return new FinancialMetricsDto
         {
+            TotalAssets = Math.Round(totalAssets, 2),
+            TotalLiabilities = Math.Round(totalLiabilities, 2),
+            NetWorth = Math.Round(netWorth, 2),
             SavingsRate = Math.Round(savingsRate, 2),
             LiquidityRatio = Math.Round(liquidityRatio, 2),
             DebtRatio = Math.Round(debtRatio, 2)

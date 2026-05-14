@@ -20,4 +20,11 @@ public class Transaction : BaseEntity
         Date = DateTime.UtcNow;
         UserId = userId;
     }
+
+    public void UpdateDetails(decimal amount, TransactionType type, string description)
+    {
+        Amount = amount;
+        Type = type;
+        Description = description;
+    }
 }

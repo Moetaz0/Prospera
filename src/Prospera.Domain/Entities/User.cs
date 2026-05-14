@@ -13,6 +13,18 @@ public class User : BaseEntity , IAggregateRoot
 
     public RiskProfile RiskProfile { get; private set; }
 
+    /// <summary>
+    /// ISO 3166-1 alpha-2 country code (e.g., "US", "DE", "TN")
+    /// Used for automatic location-based financial rates
+    /// </summary>
+    public string? Country { get; private set; }
+
+    public string? PasswordResetToken { get; private set; }
+    public DateTime? PasswordResetTokenExpiry { get; private set; }
+
+    public string? RefreshToken { get; private set; }
+    public DateTime? RefreshTokenExpiry { get; private set; }
+
     private readonly List<Asset> _assets = new();
     public IReadOnlyCollection<Asset> Assets => _assets.AsReadOnly();
 
@@ -58,6 +70,15 @@ public class User : BaseEntity , IAggregateRoot
         }
     }
 
+    /// <summary>
+    /// Set the user's country for location-based financial rates
+    /// </summary>
+    /// <param name="countryCode">ISO 3166-1 alpha-2 country code (e.g., "US", "DE", "TN")</param>
+    public void SetCountry(string? countryCode)
+    {
+        Country = countryCode;
+    }
+
     public void SetPasswordHash(string passwordHash)
     {
         PasswordHash = passwordHash;
@@ -69,6 +90,44 @@ public class User : BaseEntity , IAggregateRoot
         {
             Role = role;
         }
+    }
+
+    public void GeneratePasswordResetToken(string token, int expiryMinutes = 15)
+    {
+        PasswordResetToken = token;
+        PasswordResetTokenExpiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
+    }
+
+    public bool IsPasswordResetTokenValid()
+    {
+        return !string.IsNullOrWhiteSpace(PasswordResetToken) && 
+               PasswordResetTokenExpiry.HasValue && 
+               PasswordResetTokenExpiry > DateTime.UtcNow;
+    }
+
+    public void ClearPasswordResetToken()
+    {
+        PasswordResetToken = null;
+        PasswordResetTokenExpiry = null;
+    }
+
+    public void SetRefreshToken(string token, int expiryDays = 7)
+    {
+        RefreshToken = token;
+        RefreshTokenExpiry = DateTime.UtcNow.AddDays(expiryDays);
+    }
+
+    public bool IsRefreshTokenValid()
+    {
+        return !string.IsNullOrWhiteSpace(RefreshToken) && 
+               RefreshTokenExpiry.HasValue && 
+               RefreshTokenExpiry > DateTime.UtcNow;
+    }
+
+    public void ClearRefreshToken()
+    {
+        RefreshToken = null;
+        RefreshTokenExpiry = null;
     }
 
     public void AddAsset(Asset asset)

@@ -1,6 +1,7 @@
 using AutoMapper;
 using Prospera.Domain.Entities;
 using Prospera.Application.DTOs;
+using Prospera.Application.DTOs.Coaching;
 
 namespace Prospera.Application.Common.Mappings;
 
@@ -27,5 +28,10 @@ public class MappingProfile : Profile
 
         // FinancialMetrics mappings
         CreateMap<FinancialMetrics, FinancialMetricsDto>().ReverseMap();
+
+        // Coaching Session mappings
+        CreateMap<CoachingSession, CoachingSessionDto>().ReverseMap();
+        CreateMap<CoachingActionItem, ActionItemDto>().ReverseMap();
+        CreateMap<CoachingMilestone, MilestoneDto>().ReverseMap();
     }
 }

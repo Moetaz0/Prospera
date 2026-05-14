@@ -7,5 +7,6 @@ public enum AssetType
     Bond = 2,
     RealEstate = 3,
     Crypto = 4,
-    Other = 5
+    Car = 5,
+    Other = 6
 }

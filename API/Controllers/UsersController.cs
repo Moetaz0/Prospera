@@ -45,14 +45,23 @@ public class UsersController : ControllerBase
 
         var users = await _userRepository.GetAllAsync();
 
-        var response = users.Select(u => new UserDto
+        var response = users.Select(u =>
         {
-            Id = u.Id,
-            FullName = u.FullName,
-            Email = u.Email,
-            RiskProfile = Enum.Parse<Prospera.Contracts.Enums.RiskProfile>(u.RiskProfile.ToString()),
-            NetWorth = (u.Assets?.Sum(a => a.CurrentValue) ?? 0) - (u.Liabilities?.Sum(l => l.Amount) ?? 0),
-            CreatedAt = DateTime.UtcNow
+            // Parse first and last names from full name
+            var nameParts = (u.FullName ?? "").Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
+            var firstName = nameParts.Length > 0 ? nameParts[0] : "";
+            var lastName = nameParts.Length > 1 ? string.Join(" ", nameParts.Skip(1)) : "";
+
+            return new Prospera.Contracts.DTOs.User.AdminUserDto
+            {
+                UserId = u.Id.ToString(),
+                Email = u.Email,
+                FirstName = firstName,
+                LastName = lastName,
+                IsAdmin = u.Role == "Admin",
+                CreatedAt = DateTime.UtcNow,
+                LastLogin = null
+            };
         });
 
         return Ok(response);
@@ -71,20 +80,33 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> GetUserById(Guid id)
     {
         _logger.LogInformation("Fetching user dashboard for ID: {UserId}", id);
-        
+
         try
         {
-            // TODO: Send GetUserDashboardQuery via MediatR
-            // var query = new GetUserDashboardQuery { UserId = id };
-            // var result = await _mediator.Send(query);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null)
+            {
+                _logger.LogWarning("User not found with ID: {UserId}", id);
+                return NotFound(new { message = "User not found" });
+            }
+
+            var response = new UserDashboardDto
+            {
+                Id = user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
+                RiskProfile = Enum.Parse<Prospera.Contracts.Enums.RiskProfile>(user.RiskProfile.ToString()),
+                NetWorth = user.CalculateNetWorth(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching user with ID: {UserId}", id);
-            throw;
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "Failed to retrieve user", error = ex.Message });
         }
     }
 
@@ -104,20 +126,63 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> UpdateUser(Guid id, UpdateUserRequest request)
     {
         _logger.LogInformation("Updating user with ID: {UserId}", id);
-        
+
         try
         {
-            // TODO: Send UpdateUserCommand via MediatR
-            // var command = new UpdateUserCommand { UserId = id, ...request properties };
-            // var result = await _mediator.Send(command);
-            // return Ok(result);
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null)
+            {
+                _logger.LogWarning("User not found with ID: {UserId}", id);
+                return NotFound(new { message = "User not found" });
+            }
+
+            // Build full name from first and last name if provided, otherwise use FullName
+            string? fullName = null;
+            if (!string.IsNullOrWhiteSpace(request.FirstName) && !string.IsNullOrWhiteSpace(request.LastName))
+            {
+                fullName = $"{request.FirstName} {request.LastName}";
+            }
+            else if (!string.IsNullOrWhiteSpace(request.FullName))
+            {
+                fullName = request.FullName;
+            }
+
+            // Convert RiskProfile enum if needed
+            Prospera.Domain.Enums.RiskProfile? domainRiskProfile = null;
+            if (request.RiskProfile.HasValue)
+            {
+                domainRiskProfile = Enum.Parse<Prospera.Domain.Enums.RiskProfile>(request.RiskProfile.Value.ToString());
+            }
+
+            // Update user profile
+            user.UpdateProfile(fullName, request.Email, domainRiskProfile);
+
+            // Update admin status if requested
+            if (request.IsAdmin.HasValue)
+            {
+                var newRole = request.IsAdmin.Value ? "Admin" : "User";
+                user.SetRole(newRole);
+            }
+
+            await _userRepository.UpdateAsync(user);
+
+            var response = new UserDto
+            {
+                Id = user.Id,
+                FullName = user.FullName,
+                Email = user.Email,
+                RiskProfile = Enum.Parse<Prospera.Contracts.Enums.RiskProfile>(user.RiskProfile.ToString()),
+                NetWorth = user.CalculateNetWorth(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Successfully updated user with ID: {UserId}", id);
+            return Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating user with ID: {UserId}", id);
-            throw;
+            return BadRequest(new { message = "Failed to update user", error = ex.Message });
         }
     }
 
@@ -134,20 +199,24 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteUser(Guid id)
     {
         _logger.LogInformation("Deleting user with ID: {UserId}", id);
-        
+
         try
         {
-            // TODO: Send DeleteUserCommand via MediatR
-            // var command = new DeleteUserCommand { UserId = id };
-            // await _mediator.Send(command);
-            // return NoContent();
-            
-            return StatusCode(StatusCodes.Status501NotImplemented);
+            var user = await _userRepository.GetByIdAsync(id);
+            if (user == null)
+            {
+                _logger.LogWarning("User not found with ID: {UserId}", id);
+                return NotFound(new { message = "User not found" });
+            }
+
+            await _userRepository.DeleteAsync(id);
+            _logger.LogInformation("Successfully deleted user with ID: {UserId}", id);
+            return NoContent();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting user with ID: {UserId}", id);
-            throw;
+            return BadRequest(new { message = "Failed to delete user", error = ex.Message });
         }
     }
 }
