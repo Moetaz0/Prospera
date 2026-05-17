@@ -26,6 +26,14 @@ public class InvestmentRecommendationRepository : IInvestmentRecommendationRepos
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<InvestmentRecommendation>> GetBySessionIdAsync(Guid sessionId)
+    {
+        return await _context.InvestmentRecommendations
+            .Where(ir => ir.SessionId == sessionId)
+            .OrderByDescending(ir => ir.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(InvestmentRecommendation recommendation)
     {
         await _context.InvestmentRecommendations.AddAsync(recommendation);

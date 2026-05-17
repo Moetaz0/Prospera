@@ -4,9 +4,12 @@ using System.Threading.Tasks;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Prospera.Application.Common.Interfaces;
 using Prospera.Application.Features.Transactions.Commands;
 using Prospera.Application.Features.Transactions.Queries;
 using Prospera.Contracts.DTOs.Transaction;
+using System.Security.Claims;
+using Prospera.Infrastructure.Persistence;
 
 namespace Prospera.API.Controllers;
 
@@ -22,11 +25,15 @@ public class TransactionsController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly ILogger<TransactionsController> _logger;
+    private readonly IStripeService _stripeService;
+    private readonly ApplicationDbContext _context;
 
-    public TransactionsController(IMediator mediator, ILogger<TransactionsController> logger)
+    public TransactionsController(IMediator mediator, ILogger<TransactionsController> logger, IStripeService stripeService, ApplicationDbContext context)
     {
         _mediator = mediator;
         _logger = logger;
+        _stripeService = stripeService;
+        _context = context;
     }
 
     /// <summary>
@@ -224,6 +231,11 @@ public class TransactionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SyncStripeTransactions(Guid userId, [FromQuery] string? stripeAccountId = null)
     {
+        if (!IsCurrentUserOrAdmin(userId))
+        {
+            return Forbid();
+        }
+
         _logger.LogInformation("Syncing Stripe transactions for user: {UserId}", userId);
 
         try
@@ -256,12 +268,73 @@ public class TransactionsController : ControllerBase
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStripeConnectUrl(Guid userId)
     {
-        _logger.LogInformation("Creating Mock Stripe Connect link for user: {UserId}", userId);
-        
-        // For testing/demo purposes, we return the deep link directly.
-        // This simulates a successful redirect from Stripe.
-        var mockRedirectUrl = "prospera://stripe-callback?code=mock_test_code&state=" + userId.ToString();
-        
-        return Ok(new { url = mockRedirectUrl });
+        if (!IsCurrentUserOrAdmin(userId))
+        {
+            return Forbid();
+        }
+
+        _logger.LogInformation("Creating Stripe Connect link for user: {UserId}", userId);
+
+        var connectUrl = await _stripeService.CreateConnectAccountLinkAsync(userId);
+        return Ok(new { url = connectUrl });
+    }
+
+    /// <summary>
+    /// Save Stripe account ID after user completes onboarding
+    /// </summary>
+    [HttpPost("users/{userId}/stripe-account/{accountId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SaveStripeAccountId(Guid userId, string accountId)
+    {
+        if (!IsCurrentUserOrAdmin(userId))
+        {
+            return Forbid();
+        }
+
+        if (string.IsNullOrWhiteSpace(accountId))
+        {
+            return BadRequest("Account ID is required");
+        }
+
+        _logger.LogInformation("Saving Stripe account {AccountId} for user: {UserId}", accountId, userId);
+
+        try
+        {
+            // Get current user
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                return NotFound("User not found");
+            }
+
+            // Update user with Stripe account ID and sync timestamp
+            user.StripeAccountId = accountId;
+            user.LastStripeSync = DateTime.UtcNow;
+
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Successfully saved Stripe account for user: {UserId}", userId);
+            return Ok(new { success = true, stripeAccountId = accountId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving Stripe account for user: {UserId}", userId);
+            return StatusCode(500, "Failed to save Stripe account");
+        }
+    }
+
+    private bool IsCurrentUserOrAdmin(Guid routeUserId)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var roleClaim = User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
+
+        if (!string.IsNullOrWhiteSpace(roleClaim) && roleClaim.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Guid.TryParse(userIdClaim, out var currentUserId) && currentUserId == routeUserId;
     }
 }

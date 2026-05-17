@@ -58,8 +58,10 @@ public class CarsController : ControllerBase
             // Get car depreciation schedule from Financial API
             var depreciationData = await _financialDataService.GetCarDepreciationAsync(
                 request.PurchasePrice,
-                DateTime.UtcNow.Year - request.PurchaseYear,
+                request.PurchaseYear,
+                request.Category,
                 request.CountryCode,
+                request.AnnualMileageKm,
                 CancellationToken.None);
 
             if (depreciationData == null || depreciationData.Schedule == null || depreciationData.Schedule.Count == 0)

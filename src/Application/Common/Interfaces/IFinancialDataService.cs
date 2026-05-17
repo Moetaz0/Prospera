@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Prospera.Application.Common.Interfaces;
 
 /// <summary>
@@ -54,7 +56,13 @@ public interface IFinancialDataService
     /// <summary>
     /// Get car amortization/depreciation schedule
     /// </summary>
-    Task<CarDepreciationData> GetCarDepreciationAsync(decimal purchasePrice, int years, string countryCode, CancellationToken cancellationToken);
+    Task<CarDepreciationData> GetCarDepreciationAsync(
+        decimal purchasePrice,
+        int purchaseYear,
+        string category,
+        string countryCode,
+        int annualMileageKm,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Get car categories and depreciation multipliers
@@ -163,12 +171,21 @@ public class PurchasingPowerData
 /// </summary>
 public class RealEstateData
 {
+    [JsonPropertyName("location")]
     public string Location { get; set; } = string.Empty;
+
+    [JsonPropertyName("country_code")]
     public string? Country { get; set; }
+
     public decimal? AveragePricePerSqm { get; set; }
     public decimal? RentalYield { get; set; }
+
+    [JsonPropertyName("average_annual_growth")]
     public decimal AverageAnnualGrowth { get; set; } // Annual growth rate percentage
+
+    [JsonPropertyName("data")]
     public List<RealEstateHistoricalData> Data { get; set; } = new(); // Historical price/growth data
+
     public Dictionary<string, object>? MarketIndicators { get; set; }
     public DateTime LastUpdated { get; set; }
 }
@@ -178,8 +195,13 @@ public class RealEstateData
 /// </summary>
 public class RealEstateHistoricalData
 {
+    [JsonPropertyName("year")]
     public int Year { get; set; }
+
+    [JsonPropertyName("index_value")]
     public decimal IndexValue { get; set; }
+
+    [JsonPropertyName("growth_rate")]
     public decimal GrowthRate { get; set; }
 }
 

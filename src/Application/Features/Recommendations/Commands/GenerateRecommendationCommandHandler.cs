@@ -188,7 +188,7 @@ public class GenerateRecommendationCommandHandler : IRequestHandler<GenerateReco
             var explanation = await GetExplanation(suggestedAllocation, request.AnalysisContext, riskTolerance, marketData, provider, model, cancellationToken);
 
             // === PHASE 7: Create and enrich recommendation ===
-            var recommendation = new InvestmentRecommendation(request.UserId, suggestedAllocation, explanation);
+            var recommendation = new InvestmentRecommendation(request.UserId, suggestedAllocation, explanation, request.AnalysisContext, request.SessionId);
 
             var riskProfile = riskTolerance switch
             {
@@ -1069,7 +1069,7 @@ Provide a coaching-style explanation (3-4 sentences) that validates their invest
         // Create intelligent explanation based on situation
         var explanation = GenerateSmartExplanation(allocationBreakdown, riskTolerance, netWorth, totalAssets, totalLiabilities);
 
-        var recommendation = new InvestmentRecommendation(request.UserId, allocation, explanation);
+        var recommendation = new InvestmentRecommendation(request.UserId, allocation, explanation, request.AnalysisContext, request.SessionId);
 
         var riskProfile = riskTolerance switch
         {

@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Asset> Assets => Set<Asset>();
     public DbSet<Liability> Liabilities => Set<Liability>();
     public DbSet<InvestmentRecommendation> InvestmentRecommendations => Set<InvestmentRecommendation>();
+    public DbSet<RecommendationSession> RecommendationSessions => Set<RecommendationSession>();
     public DbSet<CachedNewsArticle> NewsArticles => Set<CachedNewsArticle>();
     public DbSet<CustomFinancialRate> CustomFinancialRates => Set<CustomFinancialRate>();
     public DbSet<CoachingSession> CoachingSessions => Set<CoachingSession>();
@@ -39,6 +40,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     IQueryable<Asset> IApplicationDbContext.Assets => Assets;
     IQueryable<Liability> IApplicationDbContext.Liabilities => Liabilities;
     IQueryable<InvestmentRecommendation> IApplicationDbContext.InvestmentRecommendations => InvestmentRecommendations;
+    IQueryable<RecommendationSession> IApplicationDbContext.RecommendationSessions => RecommendationSessions;
     IQueryable<CoachingSession> IApplicationDbContext.CoachingSessions => CoachingSessions;
     IQueryable<RealEstateEvaluation> IApplicationDbContext.RealEstateEvaluations => RealEstateEvaluations;
     IQueryable<CarEvaluation> IApplicationDbContext.CarEvaluations => CarEvaluations;
@@ -66,6 +68,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         modelBuilder.Entity<Liability>().Ignore(l => l.DomainEvents);
         modelBuilder.Entity<Transaction>().Ignore(t => t.DomainEvents);
         modelBuilder.Entity<InvestmentRecommendation>().Ignore(ir => ir.DomainEvents);
+        modelBuilder.Entity<RecommendationSession>().Ignore(rs => rs.DomainEvents);
         modelBuilder.Entity<CustomFinancialRate>().Ignore(cfr => cfr.DomainEvents);
         modelBuilder.Entity<CoachingSession>().Ignore(cs => cs.DomainEvents);
         modelBuilder.Entity<RealEstateEvaluation>().Ignore(re => re.DomainEvents);

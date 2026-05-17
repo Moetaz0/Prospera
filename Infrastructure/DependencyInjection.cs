@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<ILiabilityRepository, LiabilityRepository>();
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<IInvestmentRecommendationRepository, InvestmentRecommendationRepository>();
+        services.AddScoped<IRecommendationSessionRepository, RecommendationSessionRepository>();
         services.AddScoped<INewsRepository, NewsRepository>();
         services.AddScoped<ICustomFinancialRateRepository, CustomFinancialRateRepository>();
         services.AddScoped<ICoachingSessionRepository, CoachingSessionRepository>();
@@ -122,14 +123,29 @@ public static class DependencyInjection
         services.AddScoped<Prospera.Application.Common.Interfaces.IMarketDataService, AlphaVantageService>();
         services.AddScoped<Prospera.Infrastructure.ExternalServices.MarketData.IMarketDataServiceInfra, AlphaVantageService>();
         services.AddScoped<ILlmService, OllamaService>();
-        services.AddScoped<IStripeService, StripeService>();
+        services.AddScoped<Prospera.Application.Common.Interfaces.IStripeService, StripeService>();
         services.AddScoped<IFinancialNewsService, NewsApiService>();
 
         // Financial Data Service - FastAPI integration
         services.AddHttpClient<IFinancialDataService, FinancialDataService>()
             .ConfigureHttpClient(client =>
             {
-                var baseUrl = configuration["FinancialDataApi:Url"] ?? "http://localhost:8000/api/v1";
+                // Read from configuration with explicit handling
+                var configUrl = configuration["FinancialDataApi:Url"];
+                var baseUrl = string.IsNullOrWhiteSpace(configUrl)
+                    ? "http://localhost:8000/api/v1"
+                    : configUrl.TrimEnd('/'); // Remove trailing slash first
+
+                // HttpClient.BaseAddress MUST have a trailing slash for relative URIs to combine correctly
+                if (!baseUrl.EndsWith("/"))
+                {
+                    baseUrl += "/";
+                }
+
+                Console.WriteLine($"[DependencyInjection] FinancialDataService HttpClient");
+                Console.WriteLine($"  Config value: '{configUrl}'");
+                Console.WriteLine($"  Final BaseAddress: {baseUrl}");
+
                 client.BaseAddress = new Uri(baseUrl);
                 client.Timeout = TimeSpan.FromSeconds(10);
             });

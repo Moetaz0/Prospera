@@ -25,6 +25,16 @@ public class User : BaseEntity , IAggregateRoot
     public string? RefreshToken { get; private set; }
     public DateTime? RefreshTokenExpiry { get; private set; }
 
+    /// <summary>
+    /// Stripe Connect account ID for transaction syncing
+    /// </summary>
+    public string? StripeAccountId { get; set; }
+
+    /// <summary>
+    /// Timestamp of the last successful Stripe sync
+    /// </summary>
+    public DateTime? LastStripeSync { get; set; }
+
     private readonly List<Asset> _assets = new();
     public IReadOnlyCollection<Asset> Assets => _assets.AsReadOnly();
 

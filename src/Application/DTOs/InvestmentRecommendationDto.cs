@@ -11,6 +11,7 @@ public class InvestmentRecommendationDto
     // Keep backward compat
     public string SuggestedAllocation { get; set; } = string.Empty;
     public string Explanation { get; set; } = string.Empty;
+    public string AnalysisContext { get; set; } = string.Empty;
 
     // Structured response
     public PortfolioProfileDto Profile { get; set; } = new();

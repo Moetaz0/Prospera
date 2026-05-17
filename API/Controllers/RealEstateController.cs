@@ -204,11 +204,13 @@ public class RealEstateController : ControllerBase
     /// </summary>
     [HttpGet("locations")]
     [AllowAnonymous]
-    public async Task<ActionResult<object>> GetLocations()
+    public async Task<ActionResult<object>> GetLocations([FromQuery] string countryCode = "TN")
     {
         try
         {
-            var locations = await _financialDataService.GetRealEstateLocationsAsync(CancellationToken.None);
+            var locations = countryCode.ToUpper() == "TN"
+                ? await _financialDataService.GetRealEstateLocationsAsync(CancellationToken.None)
+                : await GetLocationsForCountry(countryCode.ToUpper());
             return Ok(new { locations });
         }
         catch (Exception ex)
@@ -217,6 +219,15 @@ public class RealEstateController : ControllerBase
             return StatusCode(500, new { message = "Error retrieving locations", error = ex.Message });
         }
     }
+
+    private Task<List<string>> GetLocationsForCountry(string countryCode) =>
+        Task.FromResult(countryCode switch
+        {
+            "FR" => new List<string> { "Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes" },
+            "US" => new List<string> { "New York", "Los Angeles", "Chicago", "Houston", "Phoenix", "Philadelphia" },
+            "DE" => new List<string> { "Berlin", "Munich", "Cologne", "Hamburg", "Frankfurt", "Stuttgart" },
+            _ => new List<string> { "Tunis", "Sfax", "Sousse", "Monastir" }
+        });
 
     /// <summary>
     /// Get market data for a Tunisia location

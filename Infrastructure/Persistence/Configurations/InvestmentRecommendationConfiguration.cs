@@ -21,26 +21,36 @@ public class InvestmentRecommendationConfiguration : IEntityTypeConfiguration<In
             .IsRequired()
             .HasMaxLength(4096);
 
+        builder.Property(ir => ir.AnalysisContext)
+            .IsRequired(false)
+            .HasMaxLength(2048);
+
         builder.Property(ir => ir.CreatedAt)
             .IsRequired();
 
-        // Structured recommendation fields - optional for backward compatibility
-        builder.Property(ir => ir.RiskProfile);
-        builder.Property(ir => ir.PortfolioSummary);
-        builder.Property(ir => ir.SuggestedActions);
-        builder.Property(ir => ir.KeyRisks);
-        builder.Property(ir => ir.Opportunities);
+        builder.Property(ir => ir.SessionId)
+            .IsRequired(false);
 
-        // Configure AllocationItems as an owned collection of embedded documents
+        // Structured recommendation fields - optional for backward compatibility with existing MongoDB documents
+        builder.Property(ir => ir.RiskProfile)
+            .IsRequired(false);
+        builder.Property(ir => ir.PortfolioSummary)
+            .IsRequired(false);
+        builder.Property(ir => ir.SuggestedActions)
+            .IsRequired(false);
+        builder.Property(ir => ir.KeyRisks)
+            .IsRequired(false);
+        builder.Property(ir => ir.Opportunities)
+            .IsRequired(false);
+
+        // Configure AllocationItems as owned collection stored as JSON
         builder.OwnsMany(ir => ir.AllocationItems, a =>
         {
             a.ToJson();
-            a.Property(item => item.Category);
-            a.Property(item => item.Percentage);
-            a.Property(item => item.Rationale);
         });
 
         builder.HasIndex(ir => ir.UserId);
+        builder.HasIndex(ir => ir.SessionId);
         builder.HasIndex(ir => ir.CreatedAt);
     }
 }

@@ -1,5 +1,7 @@
 ﻿using Prospera.Domain.Entities;
 using Prospera.Domain.Interfaces;
+using Prospera.Infrastructure.Services;
+using Microsoft.Extensions.Configuration;
 
 namespace Prospera.Infrastructure.Identity;
 
@@ -8,15 +10,21 @@ public class IdentityService : IIdentityService
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenGenerator _tokenGenerator;
+    private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration;
 
     public IdentityService(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
-        ITokenGenerator tokenGenerator)
+        ITokenGenerator tokenGenerator,
+        IEmailService emailService,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _tokenGenerator = tokenGenerator;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     public async Task<Result<AuthResult>> RegisterAsync(
@@ -41,6 +49,9 @@ public class IdentityService : IIdentityService
             user.SetRefreshToken(refreshToken);
 
             await _userRepository.AddAsync(user);
+
+            // Send welcome email
+            await _emailService.SendWelcomeEmailAsync(email, firstName);
 
             var token = _tokenGenerator.GenerateToken(user);
             return Result<AuthResult>.Success(AuthResult.FromUser(token, refreshToken, user));
@@ -127,6 +138,22 @@ public class IdentityService : IIdentityService
             var resetToken = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
             user.GeneratePasswordResetToken(resetToken);
             await _userRepository.UpdateAsync(user);
+
+            // Send password reset email
+            var frontendUrl = _configuration["Frontend:BaseUrl"] ?? "http://localhost:3000";
+            var resetLink = $"{frontendUrl}/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(resetToken)}";
+            
+            var emailBody = $@"
+                <h2>Password Reset Request</h2>
+                <p>Hello {user.FullName},</p>
+                <p>We received a request to reset your password. Click the link below to proceed:</p>
+                <p><a href='{resetLink}' style='background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;'>Reset Password</a></p>
+                <p>This link will expire in 15 minutes.</p>
+                <p>If you didn't request a password reset, please ignore this email.</p>
+                <p>Best regards,<br/>The Prospera Team</p>
+            ";
+
+            await _emailService.SendEmailAsync(email, "Password Reset Request", emailBody);
 
             return Result<string>.Success(resetToken);
         }

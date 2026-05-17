@@ -1,7 +1,6 @@
 ﻿namespace Prospera.Infrastructure.ExternalServices.Banking;
 
-public interface IStripeService
+// Backward-compatible alias for legacy references in Infrastructure.
+public interface IStripeService : Prospera.Application.Common.Interfaces.IStripeService
 {
-    Task<string> CreateConnectAccountLinkAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<bool> VerifyAccountAsync(string stripeAccountId, CancellationToken cancellationToken = default);
 }

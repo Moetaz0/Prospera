@@ -30,4 +30,9 @@ public class GenerateRecommendationCommand : IRequest<InvestmentRecommendationDt
     /// Optional: Custom API endpoint (if using custom Ollama or OpenRouter instance)
     /// </summary>
     public string? CustomEndpoint { get; set; }
+
+    /// <summary>
+    /// Optional: The recommendation session ID to associate this recommendation with
+    /// </summary>
+    public Guid? SessionId { get; set; }
 }

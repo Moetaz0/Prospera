@@ -1,7 +1,9 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Prospera.Contracts.DTOs.Recommendations;
+using Prospera.Application.DTOs;
 using Prospera.Domain.Common;
+using Prospera.Domain.Interfaces;
 using Prospera.Application.Features.Recommendations.Commands;
 using Prospera.Application.Features.Recommendations.Queries;
 using Prospera.Application.Common.Interfaces;
@@ -157,13 +159,14 @@ public class RecommendationsController : ControllerBase
         
         try
         {
-            var command = new GenerateRecommendationCommand 
-            { 
-                UserId = userId, 
+            var command = new GenerateRecommendationCommand
+            {
+                UserId = userId,
                 AnalysisContext = request.AnalysisContext,
                 ModelName = request.ModelName,
-                Provider = request.Provider,
-                CustomEndpoint = request.CustomEndpoint
+                Provider = (LlmProvider)request.Provider,
+                CustomEndpoint = request.CustomEndpoint,
+                SessionId = string.IsNullOrEmpty(request.SessionId) ? null : Guid.Parse(request.SessionId)
             };
             var result = await _mediator.Send(command, cancellationToken);
             return CreatedAtAction(nameof(GetRecommendationById), new { userId, id = result.Id }, result);
@@ -232,12 +235,14 @@ public class RecommendationsController : ControllerBase
         {
             var query = new GetUserRecommendationsQuery { UserId = userId };
             var result = await _mediator.Send(query, cancellationToken);
+            if (result == null)
+                return Ok(Enumerable.Empty<InvestmentRecommendationDto>());
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching recommendations for user: {UserId}", userId);
-            throw;
+            _logger.LogError(ex, "Error fetching recommendations for user: {UserId} - {Message}", userId, ex.Message);
+            return StatusCode(500, new { message = "Failed to fetch recommendations", error = ex.Message });
         }
     }
 
@@ -294,6 +299,264 @@ public class RecommendationsController : ControllerBase
             throw;
         }
     }
+
+    /// <summary>
+    /// Create a new recommendation session
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="request">Session creation details (title, description)</param>
+    /// <returns>Created session</returns>
+    /// <response code="201">Session created successfully</response>
+    [HttpPost("users/{userId}/sessions")]
+    [Authorize]
+    [ProducesResponseType(typeof(RecommendationSessionResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateSession(
+        Guid userId,
+        [FromBody] CreateSessionRequest request,
+        [FromServices] IRecommendationSessionRepository sessionRepository)
+    {
+        _logger.LogInformation("Creating recommendation session for user {UserId}", userId);
+
+        try
+        {
+            var session = new Prospera.Domain.Entities.RecommendationSession(userId, request.Title, request.Description);
+            await sessionRepository.AddAsync(session);
+
+            var response = new RecommendationSessionResponse
+            {
+                Id = session.Id.ToString(),
+                Title = session.Title,
+                Description = session.Description,
+                CreatedAt = session.CreatedAt,
+                UpdatedAt = session.UpdatedAt,
+                RecommendationCount = 0
+            };
+
+            return CreatedAtAction(nameof(GetSession), new { userId, sessionId = session.Id }, response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating session for user: {UserId}", userId);
+            return BadRequest(new { message = "Failed to create session" });
+        }
+    }
+
+    /// <summary>
+    /// Get all recommendation sessions for a user
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <returns>List of sessions with recommendation counts</returns>
+    /// <response code="200">Sessions retrieved successfully</response>
+    [HttpGet("users/{userId}/sessions")]
+    [Authorize]
+    [ProducesResponseType(typeof(IEnumerable<RecommendationSessionResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSessions(
+        Guid userId,
+        [FromServices] IRecommendationSessionRepository sessionRepository,
+        [FromServices] IInvestmentRecommendationRepository recommendationRepository)
+    {
+        _logger.LogInformation("Fetching recommendation sessions for user {UserId}", userId);
+
+        try
+        {
+            var sessions = await sessionRepository.GetByUserIdAsync(userId);
+            var responses = new List<RecommendationSessionResponse>();
+
+            foreach (var s in sessions)
+            {
+                var recommendationCount = (await recommendationRepository.GetBySessionIdAsync(s.Id)).Count();
+                responses.Add(new RecommendationSessionResponse
+                {
+                    Id = s.Id.ToString(),
+                    Title = s.Title,
+                    Description = s.Description,
+                    CreatedAt = s.CreatedAt,
+                    UpdatedAt = s.UpdatedAt,
+                    RecommendationCount = recommendationCount
+                });
+            }
+
+            return Ok(responses);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching sessions for user: {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to fetch sessions" });
+        }
+    }
+
+    /// <summary>
+    /// Get a specific recommendation session with its recommendations
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="sessionId">Session ID</param>
+    /// <returns>Session with nested recommendations</returns>
+    /// <response code="200">Session retrieved successfully</response>
+    /// <response code="404">Session not found</response>
+    [HttpGet("users/{userId}/sessions/{sessionId}")]
+    [Authorize]
+    [ProducesResponseType(typeof(RecommendationSessionDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSession(
+        Guid userId,
+        Guid sessionId,
+        [FromServices] IRecommendationSessionRepository sessionRepository,
+        [FromServices] IInvestmentRecommendationRepository recommendationRepository,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Fetching recommendation session {SessionId} for user {UserId}", sessionId, userId);
+
+        try
+        {
+            var session = await sessionRepository.GetByIdAsync(sessionId, userId);
+            if (session == null)
+                return NotFound(new { message = "Session not found" });
+
+            // Fetch all recommendations for this session
+            var basicRecommendations = await recommendationRepository.GetBySessionIdAsync(sessionId);
+            var recommendationDtos = basicRecommendations.Select(rec => new InvestmentRecommendationDto
+            {
+                Id = rec.Id,
+                UserId = rec.UserId,
+                SuggestedAllocation = rec.SuggestedAllocation,
+                Explanation = rec.Explanation,
+                AnalysisContext = rec.AnalysisContext,
+                CreatedAt = rec.CreatedAt
+            }).ToList();
+
+            var response = new RecommendationSessionDetailResponse
+            {
+                Id = session.Id.ToString(),
+                Title = session.Title,
+                Description = session.Description,
+                CreatedAt = session.CreatedAt,
+                UpdatedAt = session.UpdatedAt,
+                Recommendations = recommendationDtos
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching session {SessionId}: {Message}", sessionId, ex.Message);
+            return StatusCode(500, new { message = "Failed to fetch session", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update a recommendation session (title/description)
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="sessionId">Session ID</param>
+    /// <param name="request">Updated session details</param>
+    /// <returns>Updated session</returns>
+    /// <response code="200">Session updated successfully</response>
+    /// <response code="404">Session not found</response>
+    [HttpPut("users/{userId}/sessions/{sessionId}")]
+    [Authorize]
+    [ProducesResponseType(typeof(RecommendationSessionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateSession(
+        Guid userId,
+        Guid sessionId,
+        [FromBody] UpdateSessionRequest request,
+        [FromServices] IRecommendationSessionRepository sessionRepository)
+    {
+        _logger.LogInformation("Updating recommendation session {SessionId} for user {UserId}", sessionId, userId);
+
+        try
+        {
+            var session = await sessionRepository.GetByIdAsync(sessionId, userId);
+            if (session == null)
+                return NotFound(new { message = "Session not found" });
+
+            session.UpdateTitle(request.Title, request.Description);
+            await sessionRepository.UpdateAsync(session);
+
+            var response = new RecommendationSessionResponse
+            {
+                Id = session.Id.ToString(),
+                Title = session.Title,
+                Description = session.Description,
+                CreatedAt = session.CreatedAt,
+                UpdatedAt = session.UpdatedAt
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating session {SessionId}", sessionId);
+            return BadRequest(new { message = "Failed to update session" });
+        }
+    }
+
+    /// <summary>
+    /// Delete a recommendation session
+    /// </summary>
+    /// <param name="userId">User ID</param>
+    /// <param name="sessionId">Session ID</param>
+    /// <returns>No content</returns>
+    /// <response code="204">Session deleted successfully</response>
+    /// <response code="404">Session not found</response>
+    [HttpDelete("users/{userId}/sessions/{sessionId}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSession(
+        Guid userId,
+        Guid sessionId,
+        [FromServices] IRecommendationSessionRepository sessionRepository)
+    {
+        _logger.LogInformation("Deleting recommendation session {SessionId} for user {UserId}", sessionId, userId);
+
+        try
+        {
+            var session = await sessionRepository.GetByIdAsync(sessionId, userId);
+            if (session == null)
+                return NotFound(new { message = "Session not found" });
+
+            await sessionRepository.DeleteAsync(sessionId, userId);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting session {SessionId}", sessionId);
+            return BadRequest(new { message = "Failed to delete session" });
+        }
+    }
+}
+
+/// <summary>
+/// Request model for generating an investment recommendation
+/// </summary>
+public class GenerateInvestmentRecommendationRequest
+{
+    /// <summary>
+    /// LLM provider (0=default, 1=OpenRouter, etc.)
+    /// </summary>
+    public int Provider { get; set; } = 0;
+
+    /// <summary>
+    /// Specific model name to use
+    /// </summary>
+    public string? ModelName { get; set; }
+
+    /// <summary>
+    /// Context for analysis (e.g., financial data summary, user profile)
+    /// </summary>
+    public string AnalysisContext { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Custom endpoint for the LLM provider
+    /// </summary>
+    public string? CustomEndpoint { get; set; }
+
+    /// <summary>
+    /// Optional session ID to add recommendation to specific session
+    /// </summary>
+    public string? SessionId { get; set; }
 }
 
 /// <summary>
@@ -315,4 +578,62 @@ public class ConvertToCoachingRequest
     /// Specific model name to use for the coaching session
     /// </summary>
     public string? ModelName { get; set; }
+}
+
+/// <summary>
+/// Request model for creating a recommendation session
+/// </summary>
+public class CreateSessionRequest
+{
+    /// <summary>
+    /// Session title (e.g., "Portfolio Review May 2026")
+    /// </summary>
+    public required string Title { get; set; }
+
+    /// <summary>
+    /// Optional session description
+    /// </summary>
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// Request model for updating a recommendation session
+/// </summary>
+public class UpdateSessionRequest
+{
+    /// <summary>
+    /// Updated session title
+    /// </summary>
+    public required string Title { get; set; }
+
+    /// <summary>
+    /// Updated session description
+    /// </summary>
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// Response model for recommendation session
+/// </summary>
+public class RecommendationSessionResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public int RecommendationCount { get; set; }
+}
+
+/// <summary>
+/// Response model for recommendation session with nested recommendations
+/// </summary>
+public class RecommendationSessionDetailResponse
+{
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<InvestmentRecommendationDto> Recommendations { get; set; } = new();
 }

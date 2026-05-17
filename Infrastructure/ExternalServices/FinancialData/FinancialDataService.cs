@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -12,19 +13,15 @@ namespace Prospera.Infrastructure.ExternalServices.FinancialData;
 public class FinancialDataService : IFinancialDataService
 {
     private readonly HttpClient _httpClient;
-    private readonly string _baseUrl;
     private readonly ILogger<FinancialDataService> _logger;
     private const int RequestTimeoutSeconds = 10;
 
     public FinancialDataService(
         HttpClient httpClient,
-        IConfiguration configuration,
         ILogger<FinancialDataService> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
-        _baseUrl = configuration["FinancialDataApi:Url"] ?? "http://localhost:8000/api/v1";
-
         _httpClient.Timeout = TimeSpan.FromSeconds(RequestTimeoutSeconds);
     }
 
@@ -33,7 +30,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/inflation/{countryCode}",
+                $"inflation/{countryCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -58,7 +55,7 @@ public class FinancialDataService : IFinancialDataService
         {
             var countriesParam = string.Join(",", countryCodes);
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/inflation?countries={countriesParam}",
+                $"inflation?countries={countriesParam}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -82,7 +79,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/exchange/current/{baseCurrency}",
+                $"exchange/current/{baseCurrency}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -106,7 +103,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/exchange/tnd",
+                $"exchange/tnd",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -130,7 +127,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/exchange/history/{currencyCode}",
+                $"exchange/history/{currencyCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -154,7 +151,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/exchange/purchasing-power/{countryCode}",
+                $"exchange/purchasing-power/{countryCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -178,13 +175,14 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/real-estate/locations",
+                $"real-estate/locations",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+                var locationsResponse = JsonSerializer.Deserialize<RealEstateLocationsResponse>(json);
+                return locationsResponse?.available_locations ?? new List<string>();
             }
 
             _logger.LogWarning($"Failed to get real estate locations: {response.StatusCode}");
@@ -202,7 +200,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/real-estate/tunisia/{location}",
+                $"real-estate/tunisia/{location}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -226,7 +224,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/real-estate/global/{countryCode}",
+                $"real-estate/global/{countryCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -245,29 +243,68 @@ public class FinancialDataService : IFinancialDataService
         }
     }
 
-    public async Task<CarDepreciationData> GetCarDepreciationAsync(decimal purchasePrice, int years, string countryCode, CancellationToken cancellationToken)
+    public async Task<CarDepreciationData> GetCarDepreciationAsync(
+        decimal purchasePrice,
+        int purchaseYear,
+        string category,
+        string countryCode,
+        int annualMileageKm,
+        CancellationToken cancellationToken)
     {
         try
         {
-            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            var targetYear = DateTime.UtcNow.Year;
+
+            var requestBody = new
             {
-                { "purchase_price", purchasePrice.ToString() },
-                { "years", years.ToString() },
-                { "country_code", countryCode }
-            });
+                purchase_price = purchasePrice,
+                purchase_year = purchaseYear,
+                target_year = targetYear,
+                car_category = category,
+                country = countryCode,
+                annual_mileage_km = annualMileageKm
+            };
+
+            using var content = JsonContent.Create(requestBody);
+
+            _logger.LogInformation($"[CarDepreciation] Sending request to /cars/amortization with: purchase_price={purchasePrice}, purchase_year={purchaseYear}, target_year={targetYear}, category={category}, country={countryCode}, mileage={annualMileageKm}");
 
             var response = await _httpClient.PostAsync(
-                $"{_baseUrl}/cars/amortization",
+                $"cars/amortization",
                 content,
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                return JsonSerializer.Deserialize<CarDepreciationData>(json) ?? new CarDepreciationData { InitialPrice = purchasePrice };
+                _logger.LogInformation($"[CarDepreciation] Success response received: {json.Substring(0, Math.Min(200, json.Length))}...");
+
+                // Parse the financial API response
+                var apiResponse = JsonSerializer.Deserialize<CarAmortizationResponse>(json);
+                if (apiResponse?.yearly_breakdown != null && apiResponse.yearly_breakdown.Count > 0)
+                {
+                    // Map API response to our DTO
+                    var schedule = apiResponse.yearly_breakdown.Select(y => new YearlyDepreciation
+                    {
+                        Year = y.year,
+                        Value = y.value,
+                        DepreciationPercentage = y.depreciation_rate_pct,
+                        DepreciationAmount = purchasePrice - y.value  // Calculate depreciation amount
+                    }).ToList();
+
+                    return new CarDepreciationData
+                    {
+                        InitialPrice = apiResponse.purchase_price,
+                        YearCount = schedule.Count,
+                        Schedule = schedule,
+                        TotalDepreciation = apiResponse.total_depreciation_pct,
+                        CountryContext = $"{apiResponse.country} - {apiResponse.car_category}"
+                    };
+                }
             }
 
-            _logger.LogWarning($"Failed to get car depreciation: {response.StatusCode}");
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning($"[CarDepreciation] Failed with status {response.StatusCode}: {errorContent}");
             return new CarDepreciationData { InitialPrice = purchasePrice };
         }
         catch (Exception ex)
@@ -282,7 +319,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/cars/categories",
+                $"cars/categories",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -306,7 +343,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/predictions/inflation/{countryCode}",
+                $"predictions/inflation/{countryCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -330,7 +367,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/predictions/exchange-rate/{currencyCode}",
+                $"predictions/exchange-rate/{currencyCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -354,7 +391,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/predictions/real-estate/tunisia/{location}",
+                $"predictions/real-estate/tunisia/{location}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -378,7 +415,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/predictions/gdp-growth/{countryCode}",
+                $"predictions/gdp-growth/{countryCode}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -402,7 +439,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/valuation/{ticker}",
+                $"valuation/{ticker}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -427,7 +464,7 @@ public class FinancialDataService : IFinancialDataService
         {
             var tickerList = string.Join(",", tickers);
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/valuation/multiple?tickers={tickerList}",
+                $"valuation/multiple?tickers={tickerList}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -451,7 +488,7 @@ public class FinancialDataService : IFinancialDataService
         try
         {
             var response = await _httpClient.GetAsync(
-                $"{_baseUrl}/valuation/recommendation/{ticker}",
+                $"valuation/recommendation/{ticker}",
                 cancellationToken);
 
             if (response.IsSuccessStatusCode)
@@ -469,4 +506,34 @@ public class FinancialDataService : IFinancialDataService
             return new ValuationRecommendationData { Ticker = ticker };
         }
     }
+}
+
+/// <summary>
+/// Internal DTOs for parsing Financial API responses
+/// </summary>
+internal class CarAmortizationResponse
+{
+    public decimal purchase_price { get; set; }
+    public int purchase_year { get; set; }
+    public int target_year { get; set; }
+    public decimal current_market_value { get; set; }
+    public decimal total_depreciation_pct { get; set; }
+    public decimal inflation_adjusted_value { get; set; }
+    public string country { get; set; } = string.Empty;
+    public string car_category { get; set; } = string.Empty;
+    public List<YearlyBreakdownItem> yearly_breakdown { get; set; } = new();
+    public string? notes { get; set; }
+}
+
+internal class YearlyBreakdownItem
+{
+    public int year { get; set; }
+    public decimal value { get; set; }
+    public decimal depreciation_rate_pct { get; set; }
+    public decimal cumulative_depreciation_pct { get; set; }
+}
+
+internal class RealEstateLocationsResponse
+{
+    public List<string> available_locations { get; set; } = new();
 }
