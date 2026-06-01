@@ -9,6 +9,8 @@ namespace Prospera.Infrastructure.ExternalServices.AI;
 
 public class OllamaService : ILlmService
 {
+    private const string DefaultOllamaModel = "llama3.2";
+    private const string DefaultOpenRouterModel = "openchat/openchat-3.5";
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OllamaService> _logger;
@@ -24,7 +26,7 @@ public class OllamaService : ILlmService
         _configuration = configuration;
         _logger = logger;
         _ollamaUrl = configuration["Ollama:Url"] ?? "http://localhost:11434";
-        _modelName = configuration["Ollama:Model"] ?? "llama3.2";
+        _modelName = ResolveModelName(_ollamaUrl, configuration["Ollama:Model"]);
         _httpClient.BaseAddress = new Uri(_ollamaUrl);
     }
 
@@ -113,5 +115,47 @@ Format your response as:
 2. [Recommendation 2]
 3. [Recommendation 3]
 ";
+    }
+
+    private string ResolveModelName(string baseUrl, string? configuredModel)
+    {
+        if (!IsOpenRouterUrl(baseUrl))
+        {
+            return string.IsNullOrWhiteSpace(configuredModel) ? DefaultOllamaModel : configuredModel;
+        }
+
+        if (string.IsNullOrWhiteSpace(configuredModel))
+        {
+            _logger.LogWarning(
+                "No OpenRouter model configured. Falling back to '{FallbackModel}'.",
+                DefaultOpenRouterModel);
+
+            return DefaultOpenRouterModel;
+        }
+
+        if (configuredModel.Equals("llama3:latestt", StringComparison.OrdinalIgnoreCase) ||
+            (configuredModel.StartsWith("llama", StringComparison.OrdinalIgnoreCase) &&
+             configuredModel.Contains(':')))
+        {
+            _logger.LogWarning(
+                "Invalid OpenRouter model '{ModelName}' configured. Falling back to '{FallbackModel}'.",
+                configuredModel,
+                DefaultOpenRouterModel);
+
+            return DefaultOpenRouterModel;
+        }
+
+        return configuredModel;
+    }
+
+    private static bool IsOpenRouterUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Host.Equals("openrouter.ai", StringComparison.OrdinalIgnoreCase) ||
+               uri.Host.EndsWith(".openrouter.ai", StringComparison.OrdinalIgnoreCase);
     }
 }
